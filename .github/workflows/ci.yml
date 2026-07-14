@@ -10,12 +10,92 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check Markdown structure
         run: |
           echo "Validating documentation structure..."
-          test -f docs/architecture/AI_DBA_Copilot_Enterprise_Blueprint.md || echo "Missing: Blueprint"
-          test -f docs/architecture/AI_DBA_Copilot_Functional_Design.md || echo "Missing: Functional Design"
-          test -f docs/architecture/AI_DBA_Copilot_TDD.md || echo "Missing: TDD"
-          test -f docs/architecture/Detailed_Component_Designs.md || echo "Missing: Component Designs"
+          test -f docs/architecture/AI_DBA_Copilot_Enterprise_Blueprint.md || (echo "Missing: Blueprint" && exit 1)
+          test -f docs/architecture/AI_DBA_Copilot_Functional_Design.md || (echo "Missing: Functional Design" && exit 1)
+          test -f docs/architecture/AI_DBA_Copilot_TDD.md || (echo "Missing: TDD" && exit 1)
+          test -f docs/architecture/Detailed_Component_Designs.md || (echo "Missing: Component Designs" && exit 1)
           echo "Structure validation complete"
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aidbacopilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -q
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - run: npm test
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose build --parallel
+
+  integration:
+    needs: [validate, lint, test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start stack
+        run: docker compose up -d --wait --wait-timeout 180
+      - name: Health checks
+        run: |
+          declare -A PORTS=(
+            [detection-engine]=8001
+            [recommendation-engine]=8002
+            [jira-integration]=8003
+            [mcp-layer]=8004
+            [memory-service]=8005
+            [predictive-analytics]=8006
+            [copilot-ui]=3000
+          )
+          for svc in "${!PORTS[@]}"; do
+            port="${PORTS[$svc]}"
+            echo "Checking $svc on port $port..."
+            curl -sf "http://localhost:${port}/health" || {
+              echo "Health check failed for $svc"
+              docker compose logs "$svc" || true
+              exit 1
+            }
+          done
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

@@ -1,0 +1,199 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: aidbacopilot
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - aidba-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - aidba-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  memory-service:
+    build: ./src/memory-service
+    ports:
+      - "8005:8005"
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/aidbacopilot
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aidba-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8005/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  mcp-layer:
+    build: ./src/mcp-layer
+    ports:
+      - "8004:8004"
+    env_file:
+      - .env.example
+    environment:
+      MCP_SERVER_URL: http://host.docker.internal:8080
+      MEMORY_SERVICE_URL: http://memory-service:8005
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      memory-service:
+        condition: service_healthy
+    networks:
+      - aidba-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  detection-engine:
+    build: ./src/detection-engine
+    ports:
+      - "8001:8001"
+    env_file:
+      - .env.example
+    environment:
+      MEMORY_SERVICE_URL: http://memory-service:8005
+      MCP_LAYER_URL: http://mcp-layer:8004
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+      mcp-layer:
+        condition: service_healthy
+    networks:
+      - aidba-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  recommendation-engine:
+    build: ./src/recommendation-engine
+    ports:
+      - "8002:8002"
+    env_file:
+      - .env.example
+    environment:
+      MEMORY_SERVICE_URL: http://memory-service:8005
+      MCP_LAYER_URL: http://mcp-layer:8004
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+      mcp-layer:
+        condition: service_healthy
+    networks:
+      - aidba-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  jira-integration:
+    build: ./src/jira-integration
+    ports:
+      - "8003:8003"
+    env_file:
+      - .env.example
+    environment:
+      MEMORY_SERVICE_URL: http://memory-service:8005
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - aidba-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  predictive-analytics:
+    build: ./src/predictive-analytics
+    ports:
+      - "8006:8006"
+    env_file:
+      - .env.example
+    environment:
+      MEMORY_SERVICE_URL: http://memory-service:8005
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - aidba-network
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8006/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  copilot-ui:
+    build: ./src/copilot-ui
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env.example
+    environment:
+      MEMORY_SERVICE_URL: http://memory-service:8005
+      PREDICTIVE_ANALYTICS_URL: http://predictive-analytics:8006
+      MCP_LAYER_URL: http://mcp-layer:8004
+    depends_on:
+      memory-service:
+        condition: service_healthy
+      predictive-analytics:
+        condition: service_healthy
+      mcp-layer:
+        condition: service_healthy
+    networks:
+      - aidba-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+volumes:
+  pgdata:
+
+networks:
+  aidba-network:
+    driver: bridge
