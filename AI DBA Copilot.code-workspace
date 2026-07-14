@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../mcp-sql-server"
+		}
+	],
+	"settings": {
+		"files.exclude": {
+			"**/.claude/**": false,
+			"**/.github/**": false
+		},
+		"editor.formatOnSave": true,
+		"files.associations": {
+			"*.md": "markdown"
+		}
+	}
+}

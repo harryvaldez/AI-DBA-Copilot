@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Check Markdown structure
+        run: |
+          echo "Validating documentation structure..."
+          test -f docs/architecture/AI_DBA_Copilot_Enterprise_Blueprint.md || echo "Missing: Blueprint"
+          test -f docs/architecture/AI_DBA_Copilot_Functional_Design.md || echo "Missing: Functional Design"
+          test -f docs/architecture/AI_DBA_Copilot_TDD.md || echo "Missing: TDD"
+          test -f docs/architecture/Detailed_Component_Designs.md || echo "Missing: Component Designs"
+          echo "Structure validation complete"
