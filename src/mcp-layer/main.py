@@ -16,7 +16,7 @@ async def _check_mcp_connectivity() -> str:
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
             response = await client.get(f"{MCP_SERVER_URL.rstrip('/')}/health")
-            if response.status_code < 500:
+            if 200 <= response.status_code < 300:
                 return "connected"
     except httpx.HTTPError:
         pass
