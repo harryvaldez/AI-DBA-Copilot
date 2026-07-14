@@ -1,0 +1,26 @@
+node_modules/
+__pycache__/
+*.pyc
+.env
+.venv/
+venv/
+dist/
+.next/
+out/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+coverage/
+htmlcov/
+*.db
+*.sqlite
+*.log
+.DS_Store
+Thumbs.db
+
+# Do NOT ignore:
+# - memory-layer/migrations/
+# - alembic/versions/
+# - docs/
+# - config/ (except secrets)
