@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+.next/
+out/
+build/
+dist/
+
+# Debug / env
+npm-debug.log*
+.env
+.env*.local
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
