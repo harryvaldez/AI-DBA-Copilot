@@ -19,8 +19,9 @@ services:
 
   redis:
     image: redis:7-alpine
+    # Host port 6380 avoids clash with a local Redis on 6379; containers still use redis:6379
     ports:
-      - "6379:6379"
+      - "6380:6379"
     networks:
       - aidba-network
     healthcheck:
