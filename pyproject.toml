@@ -32,6 +32,7 @@ exclude = [".git", ".venv", "node_modules", "src/copilot-ui"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
+ignore = ["N999"]  # Service dirs use hyphenated names by design
 
 [tool.mypy]
 python_version = "3.12"
